@@ -33,3 +33,6 @@ Attribute Information:
 13. Relative Humidity (%) 
 14. AH Absolute Humidity 
 
+
+What was usefull:
+https://stackoverflow.com/questions/42356887/configuring-apache-spark-logging-with-scala-and-logback
