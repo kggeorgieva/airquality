@@ -4,18 +4,15 @@ import com.typesafe.scalalogging.LazyLogging
 import edu.airquality.common.AppConfig
 import edu.airquality.data.processing.api.DataTransformer
 import edu.airquality.spark.SparkSessionWrapper
-import org.apache.spark.internal.config
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.DoubleType
-import pureconfig.error.ConfigReaderFailures
-import pureconfig.loadConfig
 
 import scala.compat.Platform.currentTime
 import scala.util.{Failure, Success, Try}
 
-object AirQualityDataTransformer
+class AirQualityDataTransformer
     extends DataTransformer
     with SparkSessionWrapper
     with LazyLogging {
@@ -25,41 +22,43 @@ object AirQualityDataTransformer
   private val tColName = "T"
   private val tNum = "T_Numeric"
 
-  private def selectTemperatureData(data: DataFrame): Try[DataFrame] = {
-    Try(data.select(dateColName, timeColName, tColName))
+  protected def selectTemperatureData(data: DataFrame):DataFrame = {
+    Try(data.select(dateColName, timeColName, tColName)) match {
+      case Success(data) => data
+      case Failure(ex) =>
+        throw ex
+    }
   }
 
-  private def editTempDataScheme(data: DataFrame): Try[DataFrame] = {
+  protected def editTempDataScheme(data: DataFrame): Try[DataFrame] = {
     Try(data.withColumn(tColName, data(tColName).cast(DoubleType)))
   }
 
-  private def filterTempSensorRecordingMalfunctions(
+  protected def filterTempSensorRecordingMalfunctions(
       dirName: String,
       data: DataFrame): DataFrame = {
     Try(data.filter(col(tNum) === -200)) match {
       case Success(corruptData) =>
-        corruptData.write.csv(
-          "file:///" + dirName + "airquality_temp_sensor_err_" + currentTime)
-        data.filter((col(tNum) =!= -200))
-      case Failure(ex) => throw ex
+        Try(corruptData.write.csv(
+          "file:///" + dirName + "airquality_temp_sensor_err_" + currentTime)) match {
+          case Success(_) => logger.info("Writing corrupted data records on server...")
+          case Failure(_) => logger.error("Can not write corrupted data records on server. Check space availability or write permissions. ${ex.getStackTrace}")
+            //TODO log info for the dates of the corrupted records
+        }
+        data.withColumn(tNum, when(col(tNum) === -200, lit(null)).otherwise(col(tNum)))
+      case Failure(ex) => logger.error(s"The corrupted temperature sensor data can not be cleaned ${ex.getStackTrace.toString}")
+        throw ex
     }
   }
 
-  def transformData(df: DataFrame, config: AppConfig): DataFrame = {
-
+  protected def transformData(df: DataFrame, config: AppConfig): DataFrame = {
     val numeric = df
       .withColumn(tNum, regexp_replace(df(tColName), ",", ".").cast(DoubleType))
       .withColumn(dateColName, to_date(col(dateColName), "dd/MM/yyyy"))
     val filtered =
       filterTempSensorRecordingMalfunctions(config.corruptedRecordsDir, numeric)
 
-    ///val numeric = df.select(df(tColName).cast(DecimalType).as(tNum))
     numeric.show(10)
-    //  df match {
-    //      case Success(tranfData) => tranfData
-    //      case Failure(ex) => ex.getStackTrace.toList.foreach(println)
-    //    }
-    //    tranfData.show(10)
 
     val aggregated = filtered
       .groupBy(dateColName)
@@ -73,8 +72,6 @@ object AirQualityDataTransformer
 
     val statsData = filtered.join(aggregated, dateColName)
     statsData.show(10)
-
-    aggregated.withColumn("sum", col("month") + col("year"))
 
     val byDate = Window.orderBy(dateColName)
     val shiftDF = aggregated
