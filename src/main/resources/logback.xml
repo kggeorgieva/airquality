@@ -6,6 +6,9 @@
         </encoder>
     </appender>
 
+    <logger name="org.apache.spark" level="ERROR"/>
+    <logger name="org.spark_project.jetty" level="ERROR"/>
+
     <root level="info">
         <appender-ref ref="STDOUT" />
     </root>
