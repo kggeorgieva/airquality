@@ -6,7 +6,7 @@ import edu.airquality.data.processing.api.DataTransformer
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.DoubleType
+import org.apache.spark.sql.types.{DecimalType, DoubleType}
 
 import scala.compat.Platform.currentTime
 import scala.util.{Failure, Success, Try}
@@ -28,6 +28,7 @@ class AirQualityDataTransformer(spark: SparkSession)
 
   //Move to separate Transformer if you need that exposed to UI
   def generateBasisStats(data: DataFrame): DataFrame = {
+    logger.info("Generating basic stats...")
     val byDate = Window.partitionBy(dateColName)
     data
       .withColumn("Min_T_Per_Day", min(tColName) over byDate)
@@ -35,8 +36,7 @@ class AirQualityDataTransformer(spark: SparkSession)
       .withColumn("Avg_T_Per_Day", avg(tColName) over byDate)
   }
 
-  private def selectTemperatureData(data: DataFrame,
-                                    colNames: Array[String]): DataFrame = {
+  private def selectTemperatureData(data: DataFrame, colNames: Array[String]): DataFrame = {
     Try(data.select(colNames.map(col): _*)) match {
       case Success(tempData) => tempData
       case Failure(ex) =>
@@ -78,24 +78,30 @@ class AirQualityDataTransformer(spark: SparkSession)
     }
   }
 
-  protected def preProcessTempData(df: DataFrame, config: AppConfig): DataFrame = {
+  protected def preProcessTempData(data: DataFrame, config: AppConfig): DataFrame = {
+    logger.info("Filtering useful data...")
+    val df = data.filter(dateColName + " is not null")
     val tempData =
       selectTemperatureData(df, Array(dateColName, timeColName, tColName))
+    logger.info("Managing data types...")
     val numericTempData = editTempDataScheme(tempData)
+    logger.info("Writing data malfunctions...")
     filterTempSensorRecordingMalfunctions(config.corruptedRecordsDir,
                                           numericTempData)
   }
 
   protected def highestRisePerMonth(data: DataFrame): DataFrame = {
+    logger.info("Calculating highest_rise_per_month...")
     val prevDay = "prev_day"
     val monthYear = "Month_year"
 
     val filteredData = data
       .select(dateColName, avg_T_Per_Day)
       .distinct()
-      .withColumn(
-        monthYear,
-        concat(month(col(dateColName)), lit("/"), year(col(dateColName))))
+      .withColumn(monthYear,
+                  concat(year(col(dateColName)),
+                         lit("/"),
+                    format_string("%02d",month(col(dateColName)))))
 
     val byDate = Window.orderBy(dateColName)
     val shiftDF = filteredData
@@ -107,6 +113,7 @@ class AirQualityDataTransformer(spark: SparkSession)
       shiftDF
         .withColumn("highest_rise_per_month", max("diff") over byMonthYear)
         .select(monthYear, "highest_rise_per_month")
+        .sort(monthYear)
         .distinct()
     highestRise
   }

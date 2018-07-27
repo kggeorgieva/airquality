@@ -6,11 +6,12 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 
 import scala.util.{Failure, Success, Try}
 
-class AirQualityDataLoader(spark: SparkSession) extends DataLoader with LazyLogging {
+class AirQualityDataLoader(spark: SparkSession)
+    extends DataLoader
+    with LazyLogging {
 
-  private def readCSV(fileName: String,
-                      options: Map[String, String]): DataFrame = {
-    spark.read.format("csv").options(options).load(fileName)
+  private def readCSV(fileName: String, options: Map[String, String]): DataFrame = {
+    spark.read.options(options).csv(fileName)
   }
 
   override def loadDataFile(fileName: String): DataFrame = {

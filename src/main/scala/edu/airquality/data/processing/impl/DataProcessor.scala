@@ -15,8 +15,7 @@ class DataProcessor(loader: DataLoader, transformer: DataTransformer) extends La
   }
 
   def printResultData(data :DataFrame): Unit = {
-    //TODO
-    data.printSchema()
+    //TODO Add to logger
     data.show()
   }
 }
