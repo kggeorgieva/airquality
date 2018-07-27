@@ -32,7 +32,7 @@ Attribute Information:
 13. Relative Humidity (%) 
 14. AH Absolute Humidity 
 
-** Assumptions **
+**Assumptions**
 - Temp -200 seems to indicate not working sensor. So I replaced this value with na
 - Since highest_rise_per_month is based on previous day calculated for each month. 
 I assume  that the difference between the first day of the current month  and the last of the previous month will be calculated as part of current month.
@@ -51,25 +51,35 @@ In the tests: SharedSparkSession dependencies. I could not make it work with sbt
 **New to me frameworks and tools**
 
 sbt (I only have used mvn in scala projects)
+
 pureconfig
 
 **ToDos**
 
 Tests:
+ 
  - more unit tests
+ 
  - integration test
+ 
 Logging wrapper:
+
  - better and unified way of message formating
+ 
 Better Spark configurations
+
 Packaging and versioning with sbtBetter exception handling - cover corner cases
 etc.
 
 **What could get better**
 
 Design - decoupling(encapsulation) 
+
 Manage better dependency injection - perhaps using library 
-sbt buildung cycle - I really need to get to know it better
+
+sbt building cycle 
 Naming of variables, arguments and functions
+
 Spark engine configuration
 etc.
 
